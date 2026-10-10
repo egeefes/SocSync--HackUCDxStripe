@@ -2,6 +2,7 @@ import { DM_Sans, Manrope } from "next/font/google";
 import { Suspense } from "react";
 import "./globals.css";
 import "./campus.css";
+import "./extra.css";
 import { getCurrentUser } from "@/lib/session";
 import { platformStats } from "@/lib/queries";
 import Shell from "@/components/Shell";

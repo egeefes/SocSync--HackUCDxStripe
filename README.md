@@ -9,6 +9,10 @@
 - Students follow societies, filter by interest (languages, business, outdoors…), RSVP, buy tickets and join societies.
 - Only students who actually attended an event can rate it.
 
+## Merged build and login modal
+
+This archive includes the reusable login modal and iOS Safari form fixes. See [docs/MERGE_NOTES.md](docs/MERGE_NOTES.md) for merge scope, compatibility notes and validation steps.
+
 ## Vercel deployment
 
 See [VERCEL_DEPLOYMENT.md](VERCEL_DEPLOYMENT.md) for Blob setup and the current deployment limitations. Society profile images and event posters can use Vercel Blob, but the database is still local SQLite; **this version is not yet safe for production deployment on Vercel** until the PostgreSQL migration is completed.

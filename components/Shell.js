@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { CATEGORY_STYLE } from "@/lib/ui";
 import { fullReload } from "@/lib/full-reload";
+import LoginModal from "@/components/LoginModal";
 
 const ROLE_LABEL = { student: "Student", admin: "Society admin", platform: "SocSync admin" };
 
@@ -135,6 +136,7 @@ export default function Shell({ user, pendingCount = 0, children }) {
               {menu && (
                 <div className="user-dropdown" onClick={() => setMenu(false)}>
                   <div className="user-dropdown-name">{user.name}<small>{ROLE_LABEL[user.role]}</small></div>
+                  <LoginModal triggerLabel="Switch account / log in" triggerClassName="user-dropdown-action" />
                   {user.role === "student" && <Link href="/my-societies"><IdCard size={14} /> My societies</Link>}
                   {user.role === "student" && <Link href="/register-society"><PlusCircle size={14} /> Register a society</Link>}
                   <button onClick={logout}><LogOut size={14} /> Log out</button>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import JsonForm from "@/components/JsonForm";
+import LoginModal from "@/components/LoginModal";
 
 export default function SignupPage() {
   return (
@@ -18,7 +19,7 @@ export default function SignupPage() {
           <div><span className="label">UCD student email</span><input name="email" type="email" className="input" placeholder="firstname.lastname@ucdconnect.ie" required /></div>
           <div><span className="label">Password (8+ characters)</span><input name="password" type="password" className="input" minLength={8} required /></div>
         </JsonForm>
-        <p className="text-sm text-muted">Already have an account? <Link href="/login" className="text-accent underline">Log in</Link></p>
+        <p className="text-sm text-muted">Already have an account? <LoginModal triggerLabel="Log in" /></p>
       </div>
       <div className="card text-sm">
         <b>Running a society?</b> <Link href="/register-society" className="text-accent underline">Register your society</Link> instead. It creates your account too.

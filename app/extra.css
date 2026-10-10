@@ -1,0 +1,28 @@
+
+
+/* Reusable login modal + iOS Safari form-control hardening. */
+.login-modal-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(25,20,49,.58);backdrop-filter:blur(7px);display:grid;place-items:center;padding:18px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.login-modal{position:relative;width:min(100%,430px);max-height:calc(100dvh - 36px);overflow-y:auto;background:#fff;border:1px solid #eeebf7;border-radius:24px;padding:30px;box-shadow:0 28px 90px rgba(25,20,49,.28);margin:auto;overscroll-behavior:contain}
+.login-modal-close{position:absolute;top:16px;right:16px;width:38px;height:38px;display:grid;place-items:center;border:1px solid var(--line);background:#fff;border-radius:12px;color:#77738e}
+.login-modal-icon{width:46px;height:46px;display:grid;place-items:center;border-radius:15px;background:#f1edff;color:var(--purple);margin-bottom:18px}
+.login-modal-eyebrow{margin:0 0 7px;color:var(--purple);font-size:10px;font-weight:800;letter-spacing:1.8px}
+.login-modal h2{margin:0;font:800 27px/1.2 var(--font-manrope),sans-serif;letter-spacing:-.8px}
+.login-modal-subtitle{margin:9px 0 22px;color:#85849b;font-size:13px;line-height:1.55}
+.login-modal-tabs{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:4px;border:1px solid var(--line);border-radius:12px;background:#fbfaff}
+.login-modal-tabs button{border:0;border-radius:9px;padding:11px 8px;background:transparent;color:#706d87;font-weight:700;font-size:13px}
+.login-modal-tabs button.active{background:var(--purple);color:white;box-shadow:0 3px 8px #6f55e82a}
+.login-modal-form{display:grid;gap:8px;margin-top:19px}
+.login-modal-form label{font-size:12px;font-weight:700;color:#6e6a86;margin-top:5px}
+.login-modal-form input{width:100%;min-width:0;min-height:46px;border:1px solid #e8e5f0;border-radius:10px;background:#fcfbfe;padding:12px 13px;color:var(--ink);font-size:16px;line-height:1.25;appearance:none;-webkit-appearance:none;border-radius:10px}
+.login-modal-form input:focus{outline:3px solid #b9adff66;border-color:var(--purple)}
+.login-modal-submit{margin-top:8px;min-height:46px;display:flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:10px;background:var(--purple);color:white;font-size:13px;font-weight:800;padding:12px 16px}
+.login-modal-submit:hover{background:var(--purple-dark)}
+.login-modal-submit:disabled{opacity:.65;cursor:wait}
+.login-modal-error{margin:5px 0 0;padding:10px 12px;border:1px solid #fecaca;border-radius:9px;background:#fff1f2;color:#9f1239;font-size:12px;line-height:1.5}
+.login-modal-register{margin:16px 0 0;text-align:center;color:#85849b;font-size:12px}
+.login-modal-register a{color:var(--purple);font-weight:700;text-underline-offset:3px}
+@media(max-width:520px){.login-modal-backdrop{padding:10px;align-items:end}.login-modal{padding:25px 20px 22px;border-radius:22px;max-height:calc(100dvh - 20px);padding-bottom:max(22px,env(safe-area-inset-bottom))}.login-modal h2{font-size:25px}}
+/* Avoid iOS input auto-zoom and prevent native controls from changing the layout. */
+@media(max-width:767px){input,textarea,select{font-size:16px;max-width:100%}input[type="checkbox"],input[type="radio"]{width:18px;height:18px;min-width:18px;accent-color:var(--purple)}}
+
+.user-dropdown .user-dropdown-action{display:flex;align-items:center;gap:8px;width:100%;border:0;background:transparent;text-align:left;color:#55536d;font-size:12px;padding:10px 11px;border-radius:8px;text-decoration:none;cursor:pointer}.user-dropdown .user-dropdown-action:hover{background:#f6f3ff;color:var(--purple)}

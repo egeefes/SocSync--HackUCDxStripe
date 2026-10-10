@@ -29,6 +29,8 @@
     "@tailwindcss/turbopack": "^4",
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
-    "tailwindcss": "^4"
+    "tailwindcss": "^4",
+    "@types/node": "^22.15.30",
+    "@types/react": "^19.0.0"
   }
 }

@@ -1,98 +1,126 @@
-# SocSync — UCD student life
+# SocSync: every UCD society event in one calendar
 
-A Next.js 14 society and event discovery platform for UCD students, with society pages, paid memberships, tickets, reviews, interest-based recommendations and a calendar. Built for a hackathon: seed content is fictional, and auth is a demo stand-in (see "Before production").
+**HackUCD 2026 · Theme: Everyday Frustrations (with a FinTech crossover)**
 
-## What's included
+**The problem:** UCD has dozens of societies, but there's no single place to see what's on this week. If you're not a member you have to scroll each society's Instagram, and some societies don't post there at all. You also can't tell which societies run good events before you join.
 
-**For students**
-- Discover events (search, category filter, free-only, saved events) and an AI event finder (OpenRouter, with keyword fallback)
-- Pick **interests** at `/interests`; get recommended events and societies on Discover and Societies
-- **Society pages** (`/societies/[id]`): bio, committee members, social links, upcoming events, ratings and reviews
-- **Join a society for €2** (Stripe test checkout). After payment the signup is *pending* until the committee confirms it
-- **My societies** (`/my-societies`): membership cards (pending or active) and every ticket you've bought or reserved, each with a ticket code and QR
-- **Events** (`/events/[id]`): live "going" count and capacity bar, free reservations, paid tickets, reviews
-- **Calendar** (`/calendar`): month view of the events you're going to
-- **Reviews and ratings**, separate for events and for societies. One per student per target; posting again edits it. Reviewers with a ticket or confirmed membership get an "Attended" or "Member" badge
+**SocSync:**
+- Societies publish their events once, into a shared calendar.
+- Students follow societies, filter by interest (languages, business, outdoors…), RSVP, buy tickets and join societies.
+- Only students who actually attended an event can rate it.
 
-**For committees** (`/committee`)
-- See new signups with name, email and **student number**, and confirm them
-- See confirmed members
-- Edit your society page's cover image, bio, tagline, committee member profiles and social links
-- Post events for your society (price, capacity, date) and see tickets sold
-- Students must have a confirmed membership in an event's society before reserving or buying an event ticket
+## Quick start
 
-## Run locally
+1. Install Node.js 22.13+ (we use the built-in `node:sqlite`, so there's no database to install).
+2. Install the libraries:
+   ```bash
+   npm install
+   ```
+3. Create your local settings file:
+   ```bash
+   cp .env.example .env.local
+   ```
+   Then add your OpenRouter and Stripe **sandbox** keys to `.env.local`.
+4. Start the app:
+   ```bash
+   npm run dev
+   ```
+5. Open http://localhost:3000.
 
-Node.js 18.17+ (Node 20 LTS recommended).
-
+The first page load creates `data/socsync.db` with **synthetic demo data**. To start fresh, stop the server, then run:
 ```bash
-npm install
-cp .env.example .env.local
-npm run dev
+npm run reset-db
 ```
 
-Open http://localhost:3000. Data is stored in `.data/db.json` (git-ignored). Delete that folder to reset.
+The app opens on the **login page**, and nothing else is visible until you log in. Pick the **Student** or **Society** tab, then use a **one-click demo account** or your own email and password. New students click *Create a student account*. New societies click *Register your society*, which creates the applicant's account and the society application in one form.
 
-Try it:
-1. Sign in at `/signin` with any email and any 8-digit student number. Don't use a real student number.
-2. Pick interests, reserve a free event, review it.
-3. Open the avatar menu → **Committee access**, choose a society, and enter the passcode (`committee` locally) to confirm members.
-4. To see the full join flow you need Stripe test keys (below). Without them, paid actions show a "not configured" message.
+**Students** land on their home page:
+- **My societies:** paid memberships (*Member ✓*) and followed societies, each with its next event.
+- A **Find societies** search, plus the calendar.
 
-## Configuration
+Each society has a **home page** with a **Become a member** box. A student pays the membership fee, e.g. €2/year, through Stripe Checkout and becomes a member. **Society admins** land on their dashboard, which lists their paid members.
 
-| Variable | Purpose |
-| --- | --- |
-| `SESSION_SECRET` | Signs the session cookie. **Required in production.** |
-| `COMMITTEE_PASSCODE` | Shared demo passcode for committee tools. **Required in production.** |
-| `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Persistence on Vercel (Upstash Redis / Vercel KV). `UPSTASH_REDIS_REST_*` also works |
-| `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` | AI event finder |
-| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_APP_URL` | Test-mode payments |
+## Accounts & verification
 
-### Persistence
-All data (users, memberships, tickets, reviews, committee-created events) lives in one JSON document. Locally it's a file. On Vercel the filesystem is ephemeral, so **add an Upstash Redis / Vercel KV store** from the Vercel Marketplace, or data will disappear between requests. Writes are serialised within an instance and last-write-wins across instances, which is fine for a demo but not for real traffic. Move to Postgres/Supabase for that.
+| Who | How they join | What's checked |
+|---|---|---|
+| **Student** | Sign up: name, 8-digit student number, `@ucdconnect.ie` email, password | Starts **pending**: can browse and follow, but RSVPs, tickets and reviews unlock after the SocSync admin verifies them. *At launch: "Sign in with Google", limited to @ucdconnect.ie accounts, verifies students automatically.* |
+| **Society** | A student fills in **Register a society**: details, their committee role, and evidence | Hidden until the **SocSync admin** checks the Students' Union list and the applicant's committee role. Approving makes it public and the applicant its admin. Rejections include a reason, and the student can re-apply. |
+| **SocSync admin** | Demo account "SocSync Admin (you)" | Reviews both queues at **Verification requests** (`/platform`) |
 
-### Stripe test checkout
-1. Use **test mode**. Put your `sk_test_...` key in `.env.local` as `STRIPE_SECRET_KEY`.
-2. Open an event with a price, or a society page, and choose **Buy ticket** or **Join society**.
-3. Pay with `4242 4242 4242 4242`, any future expiry, any CVC.
+- Passwords are hashed with scrypt and a random salt.
+- Sessions are random tokens in an httpOnly cookie.
+- Demo accounts have no password and can only be entered through the demo buttons.
 
-Prices are set on the server (event price, or €2 membership). The browser never sends an amount. Checkout needs at least €0.50.
+**Stripe test card:** `4242 4242 4242 4242`, any future expiry date, any CVC.
 
-**How payments are recorded.** A paid session is recorded in two places, idempotently: the webhook (`checkout.session.completed`) and the `/success` page, which retrieves the session from Stripe and checks `payment_status === "paid"`. So bookings appear even before you've set up webhooks, and Stripe retries or the success page reloading can't create duplicates (keyed on session ID and on student + target).
+## How it's built
 
-Local webhook testing:
-
-```bash
-stripe listen --forward-to localhost:3000/api/stripe-webhook
+```
+Browser (React pages)  ──fetch──▶  Next.js API routes (app/api/*)  ──▶  SQLite file (data/socsync.db)
+                                            │
+                                            ├──▶ OpenRouter (AI: poster → event, moderation, summaries)
+                                            └──▶ Stripe sandbox (Checkout: Pro, tickets, memberships; Connect payouts)
 ```
 
-Copy the `whsec_...` secret into `STRIPE_WEBHOOK_SECRET` and restart.
+One Next.js project holds both the **frontend** (`app/**/page.js`, `components/`) and the **backend** (`app/api/**/route.js`, `lib/`).
 
-### OpenRouter
-Add `OPENROUTER_API_KEY` to enable AI picks. The server loads events from the database itself (the browser only sends the prompt), validates the returned IDs, and shows the model's reason on each card. Without a key it falls back to keyword matching and says so. The endpoint is rate-limited per instance (8 requests/minute/IP); use a shared limiter in production.
+| Feature | Where |
+|---|---|
+| Calendar (my societies / all), search, category filter | `app/page.js`, `components/Calendar.js`, `components/FilterBar.js`, `lib/queries.js` |
+| Browse & follow societies | `app/societies/page.js`, `app/api/follow` |
+| Society page, membership, reviews | `app/societies/[id]/page.js` |
+| Event page, RSVP, tickets, rating | `app/events/[id]/page.js`, `app/api/rsvp`, `app/api/reviews` |
+| Society dashboard | `app/admin/page.js`, `components/EventForm.js` |
+| **AI 1:** poster / caption → event | `lib/ai-features.js#extractEvent`, `app/api/ai/import-event` |
+| **AI 2:** review moderation (keeps criticism, blocks abuse) | `lib/ai-features.js#moderateReview`, `app/api/reviews` |
+| **AI 3:** "what students say" summary | `lib/ai-features.js#summariseReviews`, `app/api/ai/review-summary` |
+| **AI 4:** "What's your kind of thing?" event finder | `lib/ai-features.js#findEvents`, `app/api/ai/find-events`, `components/AiFinder.js` |
+| **AI 5:** event form → AI-designed poster (AI writes copy + paints picture; app draws exact details) | `lib/ai-features.js#designPoster`, `lib/openrouter.js#generateImage`, `app/api/ai/design-poster`, `lib/poster-canvas.js`, `components/PosterDesigner.js` |
+| Society profiles: logo, cover banner, card background, about us, committee | `components/SocietyProfileEditor.js`, `app/api/societies/profile`, `app/api/societies/[id]/image/[kind]`, `components/SocietyAvatar.js` |
+| Reviews of a society (members / attendees; post again to edit; delete) | `app/api/societies/[id]/reviews`, `components/SocietyReviewForm.js`, `lib/queries.js#societyReviewBlockReason` |
+| Tickets with QR codes: paid (Stripe) + free reserved (RSVP) | `components/TicketCard.js`, `app/my-societies`, `app/events/[id]` |
+| Edit / delete / repeat events (Google Calendar of attendees kept in sync) | `components/EventsManager.js`, `app/api/events/[id]`, `lib/events.js` |
+| **Stripe:** checkout, confirmation, webhook, Connect | `lib/stripe.js`, `app/api/stripe/*` |
+| Database schema + demo data | `lib/db.js` |
+| Accounts, sessions, verification | `lib/session.js`, `app/api/auth/*`, `app/signup`, `app/login`, `app/register-society`, `app/platform`, `app/api/platform/review` |
 
-## Deploy to Vercel
-1. Push to GitHub and import at https://vercel.com/new.
-2. Add an Upstash Redis / Vercel KV store to the project (sets `KV_REST_API_*`).
-3. Add `SESSION_SECRET`, `COMMITTEE_PASSCODE`, `NEXT_PUBLIC_APP_URL` (exact deployed URL, no trailing slash), and your Stripe / OpenRouter keys.
-4. In Stripe → Developers → Webhooks add `https://YOUR-DOMAIN/api/stripe-webhook`, subscribe to `checkout.session.completed`, copy the signing secret to `STRIPE_WEBHOOK_SECRET`, and redeploy.
+## Business model (Stripe bonus)
 
-Never use a live Stripe key for the hackathon demo.
+| What | Price | Who pays | Why it fits |
+|---|---|---|---|
+| **SocSync Pro** (subscription) | €5 / month | Society | Unlimited AI poster imports. The free plan gets 3, then the society upgrades. It saves committee time every week, and €5 is far less than a society's printing budget. |
+| Event tickets | Set by the society (e.g. Ball €30, trip €20) | Student | Money goes to the society's Stripe Connect account. SocSync keeps 5%. |
+| Membership | Set by the society (e.g. €3/year) | Student | Same as tickets: join a society without queueing at a stand. |
 
-## How the numbers work
-- **Going** = free reservations + paid tickets on SocSync, **plus** an illustrative baseline for the seeded events (`baseGoing`). New events start at 0.
-- **Members** = illustrative baseline for each seeded society + confirmed memberships on SocSync.
-- Capacity is enforced when reserving and when starting checkout. A student who has already paid is never turned away, so concurrent checkouts can slightly oversell.
-- Seeded events are dated 15 to 23 Oct 2026. After that they appear as past events; add new ones from the committee dashboard.
+**How a payment is confirmed:**
+1. Checkout is Stripe-hosted.
+2. On return, `/api/stripe/confirm` **retrieves the session from Stripe** and only acts if `status=complete` and `payment_status=paid`.
+3. It then activates Pro, records the ticket (which counts as an RSVP), or records the membership.
 
-## Before production
-This is a hackathon prototype, not a membership or ticketing system.
-- **Auth is a demo.** Sign-in is email + student number with no verification, so anyone who knows someone's email and student number can act as them. Replace with UCD SSO or email magic links.
-- **Committee access is one shared passcode** that unlocks any society. Replace with per-society roles assigned by the society.
-- Membership payments need refund and rejection handling: a committee can confirm a signup but can't yet decline or refund one.
-- Paid tickets can't be cancelled in-app (free reservations can).
-- Add ticket check-in (scan the QR), email receipts, and a privacy policy and terms. Student numbers are personal data, so only committees see them, but you still need consent, retention and GDPR handling.
-- Committee-editable society profiles are stored in the demo JSON database. Verify committee identity and validate uploaded media/links before production.
-- Move storage to a real database and the rate limiter to a shared store.
-- Society names, committee members, social handles, events and baseline numbers are fictional demo content, not verified UCD listings. Images load from Unsplash.
+`payments.stripe_session_id` is UNIQUE, so a payment can never be recorded twice, even if the redirect and the webhook both arrive. Only `sk_test_` keys are accepted.
+
+## Testing
+
+```bash
+npm run test:api
+```
+
+This runs 48 ordinary, boundary and failure cases against a running dev server on a fresh database. Run it after `npm run reset-db`. See [docs/EVIDENCE.md](docs/EVIDENCE.md) for what we tested and learned.
+
+## Data
+
+- All students, events, reviews and payments are **synthetic**, generated in `lib/db.js`.
+- Society names and descriptions are fictional placeholders, to be replaced with pilot societies that consent.
+- Event dates are generated relative to today, so the demo always has upcoming and past events.
+
+## Team workflow
+
+- `main` must always run. Work on `feature/<name>` branches and merge back every 45–60 minutes.
+- One owner for `lib/db.js` (the schema), to avoid merge conflicts.
+- Never commit `.env.local`.
+
+
+## Merge / deployment notes
+
+See [MERGE_NOTES.md](./MERGE_NOTES.md) for the feature merge summary, iPhone CSS fixes, and the important Vercel database persistence caveat.

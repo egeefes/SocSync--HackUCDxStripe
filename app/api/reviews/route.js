@@ -1,5 +1,6 @@
 // Students review events they attended. The AI screens each review for abuse before it is published.
 import db from "@/lib/db";
+import { nowStamp } from "@/lib/format";
 import { requireUser } from "@/lib/session";
 import { getEvent, reviewBlockReason } from "@/lib/queries";
 import { moderateReview } from "@/lib/ai-features";
@@ -9,7 +10,7 @@ export async function POST(request) {
   if (error) return error;
   const { eventId, stars, comment = "" } = await request.json();
 
-  const event = getEvent(Number(eventId), user.id);
+  const event = await getEvent(Number(eventId), user.id);
   const blocked = reviewBlockReason(event, user);
   if (blocked) return Response.json({ error: blocked }, { status: 400 });
 
@@ -34,12 +35,11 @@ export async function POST(request) {
     if (!verdict) moderation = "unchecked";
   }
 
-  db.prepare("INSERT INTO reviews (user_id, event_id, stars, comment, moderation) VALUES (?, ?, ?, ?, ?)").run(
-    user.id,
-    event.id,
-    n,
-    text,
-    moderation
-  );
+  // One review per student per event: the Redis field is "<user>:<event>", and it can only be created once.
+  const id = await db.nextId("reviews");
+  const created = await db.setIfAbsent("reviews", `${user.id}:${event.id}`, {
+    id, user_id: user.id, event_id: event.id, stars: n, comment: text, moderation, created_at: nowStamp(),
+  });
+  if (!created) return Response.json({ error: "You have already reviewed this event." }, { status: 400 });
   return Response.json({ ok: true, moderation });
 }

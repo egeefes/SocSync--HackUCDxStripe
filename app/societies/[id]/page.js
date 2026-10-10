@@ -39,20 +39,22 @@ export default async function SocietyPage({ params, searchParams }) {
   const { id } = await params;
   const { checkout } = await searchParams;
   const user = await pageUser();
-  const society = getSociety(Number(id), user.id);
+  const society = await getSociety(Number(id), user.id);
   if (!society) notFound();
   const isOwnSociety = user.role === "admin" && user.society_id === society.id;
   const look = styleFor(society.category);
   const committee = society.committee_json ? JSON.parse(society.committee_json) : [];
 
-  const events = listEvents({ societyId: society.id });
+  const [events, eventReviewsList, ownReviews, reviewBlocked] = await Promise.all([
+    listEvents({ societyId: society.id }),
+    societyReviews(society.id),
+    societyOwnReviews(society.id),
+    societyReviewBlockReason(user, society.id),
+  ]);
   const now = nowLocal();
   const upcoming = events.filter((e) => e.start >= now);
   const past = events.filter((e) => e.start < now).reverse();
-  const eventReviewsList = societyReviews(society.id);
-  const ownReviews = societyOwnReviews(society.id);
   const mine = ownReviews.find((r) => r.user_id === user.id);
-  const reviewBlocked = societyReviewBlockReason(user, society.id);
 
   return (
     <>

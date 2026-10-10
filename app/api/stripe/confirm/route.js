@@ -11,7 +11,7 @@ export async function GET(request) {
 
   try {
     const session = await stripe().checkout.sessions.retrieve(sessionId);
-    const result = fulfilCheckout(session);
+    const result = await fulfilCheckout(session);
     if (!result.ok) return back(`/?checkout=failed`);
     if (result.kind === "pro") return back("/admin?checkout=pro");
     if (result.kind === "ticket") {

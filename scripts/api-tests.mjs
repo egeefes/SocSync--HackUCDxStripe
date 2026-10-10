@@ -1,13 +1,19 @@
 // API tests: ordinary, boundary and failure inputs (hackathon "Test and learn" criterion).
 // Run with the dev server running on a FRESH database:
-//   npm run reset-db   (with the server stopped)   then   npm run dev   then   npm run test:api
-import { DatabaseSync } from "node:sqlite";
+//   npm run dev (no Upstash variables = fresh in-memory data)   then   npm run test:api
+// Against a real Upstash database: run `npm run reset-db -- --yes` first, so the seed data is fresh.
+import { Redis } from "@upstash/redis";
 const BASE = process.env.APP_URL || "http://localhost:3000";
-const DB_FILE = process.env.SOCSYNC_DB || "data/socsync.db"; // same database the app under test uses
 
-// Seeded demo users: 1-4 students (1 = Aoife), 5 = Japanese Society admin. The SocSync (platform)
-// admin's id depends on the database, so look it up.
-const PLATFORM = new DatabaseSync(DB_FILE, { readOnly: true }).prepare("SELECT id FROM users WHERE role = 'platform'").get().id;
+// Seeded demo users: 1-4 students (1 = Aoife), 5 = Japanese Society admin, 9 = the SocSync (platform) admin.
+const PLATFORM = 9;
+
+// To look up ids the API doesn't return, read the users straight from Redis. Only possible when the app under
+// test uses a real Upstash database (same variables as the app); with the in-memory dev store, look-ups are skipped.
+const redisUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+const redis = redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisToken }) : null;
+const userIdBy = async (field, value) => (await redis?.hvals("socsync:t:users"))?.find((u) => u[field] === value)?.id;
 
 // `as` = demo user id (logged in via one-click demo login), a cookie string (e.g. from signup), or null (guest).
 const cookies = {};
@@ -107,15 +113,15 @@ await test("failure", "Pending student can't RSVP yet", () => call("/api/rsvp", 
 await test("failure", "Guest can't follow (must log in)", () => call("/api/follow", { as: null, body: { societyId: 3 } }), is(401));
 await test("failure", "A student can't approve accounts", () => call("/api/platform/review", { as: 2, body: { type: "student", id: 1, decision: "approve" } }), is(403));
 await test("failure", "Demo one-click login refused for a real account", async () => {
-  const db = new DatabaseSync(DB_FILE, { readOnly: true });
-  const id = db.prepare("SELECT id FROM users WHERE email = ?").get(newStudent.email).id;
+  // Without Redis access we can't look the id up; real accounts are always newer than the 9 seeded users.
+  const id = (await userIdBy("email", newStudent.email)) ?? 10;
   return call("/api/login", { as: null, body: { userId: id } });
 }, is(403));
 
 // Student verification: pending -> SocSync admin approves -> RSVP works.
 const num2 = String(Number(num) + 1).padStart(8, "0").slice(-8);
 const second = await call("/api/auth/signup", { as: null, body: { ...newStudent, studentNumber: num2, email: `second.${num2}@ucdconnect.ie` } });
-const secondId = new DatabaseSync(DB_FILE, { readOnly: true }).prepare("SELECT id FROM users WHERE student_number = ?").get(num2)?.id;
+const secondId = (await userIdBy("student_number", num2)) ?? 11;
 await test("ordinary", "SocSync admin verifies a new student", () => call("/api/platform/review", { as: PLATFORM, body: { type: "student", id: secondId, decision: "approve" } }), is(200));
 await test("ordinary", "Verified student can now RSVP", () => call("/api/rsvp", { as: second.cookie, body: { eventId: 9 } }), is(200));
 

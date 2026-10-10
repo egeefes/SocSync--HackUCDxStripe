@@ -1,6 +1,5 @@
 // Society admin dashboard: create events (with AI import), plan & billing, payouts, sales, feedback.
 import Link from "next/link";
-import db from "@/lib/db";
 import EventForm from "@/components/EventForm";
 import SocietyProfileEditor from "@/components/SocietyProfileEditor";
 import EventsManager from "@/components/EventsManager";
@@ -8,7 +7,7 @@ import ActionButton from "@/components/ActionButton";
 import ReviewSummary from "@/components/ReviewSummary";
 import Flash from "@/components/Flash";
 import { pageUser } from "@/lib/session";
-import { societyDashboard, societyReviews, societyMembers, SOCIETY_MEDIA_FLAGS } from "@/lib/queries";
+import { societyDashboard, societyReviews, societyMembers, getSocietyWithMedia } from "@/lib/queries";
 import { FREE_AI_IMPORTS } from "@/lib/ai-features";
 import { PRO_PRICE_CENTS, PLATFORM_FEE_PERCENT } from "@/lib/stripe";
 import { euro, stars, nowLocal } from "@/lib/format";
@@ -16,10 +15,12 @@ import { euro, stars, nowLocal } from "@/lib/format";
 export default async function AdminPage({ searchParams }) {
   const { checkout, connect } = await searchParams;
   const user = await pageUser({ role: "admin" }); // students / SocSync admin are sent to their own home
-  const society = db.prepare(`SELECT s.*, ${SOCIETY_MEDIA_FLAGS} FROM societies s WHERE s.id = ?`).get(user.society_id);
-  const { events, payments } = societyDashboard(society.id);
-  const members = societyMembers(society.id);
-  const reviews = societyReviews(society.id);
+  const society = await getSocietyWithMedia(user.society_id);
+  const [{ events, payments }, members, reviews] = await Promise.all([
+    societyDashboard(society.id),
+    societyMembers(society.id),
+    societyReviews(society.id),
+  ]);
   const isPro = society.plan === "pro";
   const revenue = payments.filter((p) => p.kind !== "pro").reduce((sum, p) => sum + p.amount_cents - p.platform_fee_cents, 0);
 

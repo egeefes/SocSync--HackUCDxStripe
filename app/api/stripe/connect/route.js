@@ -7,7 +7,7 @@ import { requireUser } from "@/lib/session";
 import { stripe } from "@/lib/stripe";
 
 async function onboardingUrl(user, origin) {
-  const society = db.prepare("SELECT * FROM societies WHERE id = ?").get(user.society_id);
+  const society = await db.get("societies", user.society_id);
   let accountId = society.stripe_account_id;
   if (!accountId) {
     const account = await stripe().accounts.create({
@@ -17,7 +17,7 @@ async function onboardingUrl(user, origin) {
       capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
     });
     accountId = account.id;
-    db.prepare("UPDATE societies SET stripe_account_id = ? WHERE id = ?").run(accountId, society.id);
+    await db.update("societies", society.id, { stripe_account_id: accountId });
   }
   const link = await stripe().accountLinks.create({
     account: accountId,

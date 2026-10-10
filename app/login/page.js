@@ -3,10 +3,13 @@ import { Zap } from "lucide-react";
 import db from "@/lib/db";
 import LoginPanel from "@/components/LoginPanel";
 
-export const dynamic = "force-dynamic"; // reads the database on every request
+export const dynamic = "force-dynamic"; // reads Redis on every request
 
-export default function LoginPage() {
-  const demoUsers = db.prepare("SELECT id, name, role, status FROM users WHERE is_demo = 1 ORDER BY id").all();
+export default async function LoginPage() {
+  const demoUsers = (await db.all("users"))
+    .filter((u) => u.is_demo === 1)
+    .sort((a, b) => a.id - b.id)
+    .map(({ id, name, role, status }) => ({ id, name, role, status }));
 
   return (
     <div className="mx-auto max-w-md space-y-6 py-8">

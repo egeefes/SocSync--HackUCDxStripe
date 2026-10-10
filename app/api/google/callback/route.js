@@ -22,7 +22,7 @@ export async function GET(request) {
   try {
     const { refreshToken, accessToken, expiresIn, email } = await exchangeCode(url.searchParams.get("code"), url.origin);
     if (!refreshToken) return back("google=error&reason=no_refresh_token");
-    db.prepare("UPDATE users SET google_refresh_token = ?, google_email = ? WHERE id = ?").run(refreshToken, email, user.id);
+    await db.update("users", user.id, { google_refresh_token: refreshToken, google_email: email });
     rememberAccessToken(user.id, accessToken, expiresIn);
     const counts = await syncAll(user.id); // put everything they're already going to into the calendar
     return back(`google=connected&added=${counts.added}`);

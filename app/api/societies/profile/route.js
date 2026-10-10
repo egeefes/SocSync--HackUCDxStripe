@@ -3,7 +3,7 @@
 // Pictures are data URLs (resized in the browser); "" removes a picture.
 import db from "@/lib/db";
 import { requireUser } from "@/lib/session";
-import { normalizeInstagram } from "@/lib/format";
+import { normalizeInstagram, nowStamp } from "@/lib/format";
 
 // Max size of each picture (base64 characters ~ 1.33 x bytes).
 const MAX = { avatar: 400_000, cover: 1_600_000, card: 1_000_000 };
@@ -41,23 +41,23 @@ export async function POST(request) {
   }
   if (errors.length) return Response.json({ error: errors.join(" ") }, { status: 400 });
 
-  db.exec("BEGIN");
-  try {
-    if (insta) { db.prepare("UPDATE societies SET instagram = ? WHERE id = ?").run(insta.handle, sid); out.instagram = insta.handle; }
-    if ("bio" in b) db.prepare("UPDATE societies SET bio = ? WHERE id = ?").run(String(b.bio ?? "").trim() || null, sid);
-    if (committee) db.prepare("UPDATE societies SET committee_json = ? WHERE id = ?").run(committee.length ? JSON.stringify(committee) : null, sid);
-    for (const kind of ["avatar", "cover", "card"]) {
-      if (!(kind in b)) continue;
-      if (b[kind] === "") db.prepare("DELETE FROM society_media WHERE society_id = ? AND kind = ?").run(sid, kind);
-      else db.prepare(
-        `INSERT INTO society_media (society_id, kind, image_data) VALUES (?, ?, ?)
-         ON CONFLICT(society_id, kind) DO UPDATE SET image_data = excluded.image_data, updated_at = datetime('now')`
-      ).run(sid, kind, b[kind]);
+  // Text fields all live on the society row: change them in one write.
+  const patch = {};
+  if (insta) { patch.instagram = insta.handle; out.instagram = insta.handle; }
+  if ("bio" in b) patch.bio = String(b.bio ?? "").trim() || null;
+  if (committee) patch.committee_json = committee.length ? JSON.stringify(committee) : null;
+  if (Object.keys(patch).length) await db.update("societies", sid, patch);
+
+  // Pictures: the image data and a small "meta" row (so lists can show flags without loading the images).
+  for (const kind of ["avatar", "cover", "card"]) {
+    if (!(kind in b)) continue;
+    const key = `${sid}:${kind}`;
+    if (b[kind] === "") {
+      await Promise.all([db.delete("society_media", key), db.delete("society_media_meta", key)]);
+    } else {
+      await db.set("society_media", key, { image_data: b[kind] });
+      await db.set("society_media_meta", key, { society_id: sid, kind, updated_at: nowStamp() });
     }
-    db.exec("COMMIT");
-  } catch (err) {
-    db.exec("ROLLBACK");
-    throw err;
   }
   return Response.json({ ok: true, ...out });
 }

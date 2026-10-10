@@ -9,7 +9,7 @@ import { listSocieties } from "@/lib/queries";
 export default async function SocietiesPage({ searchParams }) {
   const { q = "", category = "" } = await searchParams;
   const user = await pageUser();
-  const societies = listSocieties({ search: q, category, userId: user.id });
+  const societies = await listSocieties({ search: q, category, userId: user.id });
   const href = (c) => `/societies?${new URLSearchParams({ ...(q && { q }), ...(c && { category: c }) })}`;
 
   return (

@@ -8,10 +8,11 @@ import { syncEventQuietly } from "@/lib/google";
 
 async function ownEvent(params, user) {
   const { id } = await params;
-  return db.prepare("SELECT * FROM events WHERE id = ? AND society_id = ?").get(Number(id), user.society_id);
+  const event = await db.get("events", Number(id));
+  return event && event.society_id === user.society_id ? event : null;
 }
 
-const calendarUsers = (eventId) => db.prepare("SELECT user_id FROM google_events WHERE event_id = ?").all(eventId).map((r) => r.user_id);
+const calendarUsers = async (eventId) => (await db.all("google_events")).filter((g) => g.event_id === eventId).map((g) => g.user_id);
 
 export async function PATCH(request, { params }) {
   const { user, error } = await requireUser({ admin: true });
@@ -21,15 +22,17 @@ export async function PATCH(request, { params }) {
   if (event.start < nowLocal()) return Response.json({ error: "Past events can't be edited." }, { status: 400 });
 
   const { errors, values: v } = validateEvent(await request.json());
-  const { going } = db.prepare("SELECT COUNT(*) AS going FROM rsvps WHERE event_id = ?").get(event.id);
-  const { sold } = db.prepare("SELECT COUNT(*) AS sold FROM payments WHERE event_id = ? AND kind = 'ticket'").get(event.id);
+  const { rsvps, payments } = await db.load(["rsvps", "payments"]);
+  const going = rsvps.filter((r) => r.event_id === event.id).length;
+  const sold = payments.filter((p) => p.event_id === event.id && p.kind === "ticket").length;
   if (v.capacity != null && v.capacity < going) errors.push(`Capacity can't be lower than the ${going} people already going.`);
   if (sold > 0 && v.price !== event.price_cents) errors.push("Tickets have already been sold, so the price can't change.");
   if (errors.length) return Response.json({ error: errors.join(" ") }, { status: 400 });
 
-  db.prepare("UPDATE events SET title = ?, description = ?, venue = ?, start = ?, end = ?, price_cents = ?, capacity = ? WHERE id = ?")
-    .run(v.title, v.description, v.venue, v.start, v.end, v.price, v.capacity, event.id);
-  for (const uid of calendarUsers(event.id)) await syncEventQuietly(uid, event.id); // update their Google Calendar
+  await db.update("events", event.id, {
+    title: v.title, description: v.description, venue: v.venue, start: v.start, end: v.end, price_cents: v.price, capacity: v.capacity,
+  });
+  for (const uid of await calendarUsers(event.id)) await syncEventQuietly(uid, event.id); // update their Google Calendar
   return Response.json({ ok: true });
 }
 
@@ -38,24 +41,21 @@ export async function DELETE(_request, { params }) {
   if (error) return error;
   const event = await ownEvent(params, user);
   if (!event) return Response.json({ error: "Event not found for your society." }, { status: 404 });
-  const { sold } = db.prepare("SELECT COUNT(*) AS sold FROM payments WHERE event_id = ?").get(event.id);
-  if (sold > 0) {
+  const { rsvps, payments, reviews } = await db.load(["rsvps", "payments", "reviews"]);
+  if (payments.some((p) => p.event_id === event.id)) {
     return Response.json({ error: "Paid tickets were sold for this event. Refund them in Stripe first, then delete it." }, { status: 409 });
   }
 
   // Remove it from attendees' Google Calendars first (no RSVP -> sync removes the calendar entry).
-  const synced = calendarUsers(event.id);
-  db.prepare("DELETE FROM rsvps WHERE event_id = ?").run(event.id);
+  const synced = await calendarUsers(event.id);
+  await Promise.all(rsvps.filter((r) => r.event_id === event.id).map((r) => db.delete("rsvps", `${r.user_id}:${event.id}`)));
   for (const uid of synced) await syncEventQuietly(uid, event.id);
 
-  db.exec("BEGIN");
-  try {
-    for (const table of ["reviews", "event_posters", "google_events"]) db.prepare(`DELETE FROM ${table} WHERE event_id = ?`).run(event.id);
-    db.prepare("DELETE FROM events WHERE id = ?").run(event.id);
-    db.exec("COMMIT");
-  } catch (err) {
-    db.exec("ROLLBACK");
-    throw err;
-  }
+  await Promise.all([
+    ...reviews.filter((r) => r.event_id === event.id).map((r) => db.delete("reviews", `${r.user_id}:${event.id}`)),
+    ...synced.map((uid) => db.delete("google_events", `${uid}:${event.id}`)),
+    db.delete("event_posters", event.id),
+  ]);
+  await db.delete("events", event.id);
   return Response.json({ ok: true });
 }

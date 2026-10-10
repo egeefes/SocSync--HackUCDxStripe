@@ -10,7 +10,7 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export async function POST(request) {
   const { user, error } = await requireUser({ admin: true });
   if (error) return error;
-  const society = db.prepare("SELECT * FROM societies WHERE id = ?").get(user.society_id);
+  const society = await db.get("societies", user.society_id);
 
   if (society.plan !== "pro" && society.ai_imports_used >= FREE_AI_IMPORTS) {
     return Response.json(
@@ -30,7 +30,7 @@ export async function POST(request) {
 
   try {
     const result = await extractEvent({ text, imageDataUrl });
-    db.prepare("UPDATE societies SET ai_imports_used = ai_imports_used + 1 WHERE id = ?").run(society.id);
+    await db.update("societies", society.id, { ai_imports_used: (society.ai_imports_used ?? 0) + 1 });
     return Response.json(result);
   } catch (err) {
     return aiErrorResponse(err);

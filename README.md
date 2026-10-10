@@ -11,7 +11,7 @@
 
 ## Quick start
 
-1. Install Node.js 22.13+ (we use the built-in `node:sqlite`, so there's no database to install).
+1. Install Node.js 20+. The database is Upstash Redis (see "Database" below); with no Upstash variables set, local development uses a temporary in-memory store, so there is nothing to install.
 2. Install the libraries:
    ```bash
    npm install
@@ -27,9 +27,9 @@
    ```
 5. Open http://localhost:3000.
 
-The first page load creates `data/socsync.db` with **synthetic demo data**. To start fresh, stop the server, then run:
+The first page load fills the database with **synthetic demo data**. To start fresh with a real Upstash database, run:
 ```bash
-npm run reset-db
+npm run reset-db -- --yes
 ```
 
 The app opens on the **login page**, and nothing else is visible until you log in. Pick the **Student** or **Society** tab, then use a **one-click demo account** or your own email and password. New students click *Create a student account*. New societies click *Register your society*, which creates the applicant's account and the society application in one form.
@@ -57,7 +57,7 @@ Each society has a **home page** with a **Become a member** box. A student pays 
 ## How it's built
 
 ```
-Browser (React pages)  ──fetch──▶  Next.js API routes (app/api/*)  ──▶  SQLite file (data/socsync.db)
+Browser (React pages)  ──fetch──▶  Next.js API routes (app/api/*)  ──▶  Upstash Redis (lib/db.js)
                                             │
                                             ├──▶ OpenRouter (AI: poster → event, moderation, summaries)
                                             └──▶ Stripe sandbox (Checkout: Pro, tickets, memberships; Connect payouts)
@@ -106,7 +106,7 @@ One Next.js project holds both the **frontend** (`app/**/page.js`, `components/`
 npm run test:api
 ```
 
-This runs 48 ordinary, boundary and failure cases against a running dev server on a fresh database. Run it after `npm run reset-db`. See [docs/EVIDENCE.md](docs/EVIDENCE.md) for what we tested and learned.
+This runs 48 ordinary, boundary and failure cases against a running dev server on a fresh database. Run it on a fresh database (`npm run reset-db -- --yes` for Upstash; restarting `npm run dev` is enough for the in-memory store). See [docs/EVIDENCE.md](docs/EVIDENCE.md) for what we tested and learned.
 
 ## Data
 
@@ -124,3 +124,18 @@ This runs 48 ordinary, boundary and failure cases against a running dev server o
 ## Merge / deployment notes
 
 See [MERGE_NOTES.md](./MERGE_NOTES.md) for the feature merge summary, iPhone CSS fixes, and the important Vercel database persistence caveat.
+
+
+## Database: Upstash Redis
+
+All data (accounts, login sessions, societies, events, RSVPs, tickets, payments, reviews, pictures) lives in
+Upstash Redis, so it persists across Vercel deployments and serverless instances.
+
+1. Create a database: Vercel project -> Storage -> Upstash for Redis (or console.upstash.com).
+2. Make sure these variables exist in Vercel (the integration adds the `KV_REST_API_*` pair; either pair works):
+   `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`, or `KV_REST_API_URL` + `KV_REST_API_TOKEN`.
+3. Redeploy. The first request seeds the demo data automatically.
+
+Layout: every table is one Redis hash `socsync:t:<table>` (field = row id, value = JSON row); ids come from
+`socsync:seq:<table>`; unique lookups (email, student number, Stripe session) are `socsync:idx:*` hashes written with
+HSETNX; login sessions are `socsync:session:<token>` keys that expire after 30 days. See `lib/db.js`.

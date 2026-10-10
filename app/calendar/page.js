@@ -9,7 +9,7 @@ export default async function CalendarPage({ searchParams }) {
   const user = await pageUser({ role: "student" });
   const { view = "mine", q = "", category = "" } = await searchParams;
   const mine = view !== "all";
-  const events = listEvents({ search: q, category, followedBy: mine ? user.id : null });
+  const events = await listEvents({ search: q, category, followedBy: mine ? user.id : null });
 
   const tab = (v, label) => (
     <Link href={`/calendar?view=${v}`} className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${(v === "mine") === mine ? "bg-accent text-white" : "hover:bg-accent-soft"}`}>

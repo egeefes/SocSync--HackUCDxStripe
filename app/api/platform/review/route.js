@@ -13,33 +13,27 @@ export async function POST(request) {
   }
 
   if (type === "student") {
-    const user = db.prepare("SELECT * FROM users WHERE id = ? AND status = 'pending'").get(Number(id));
+    const found = await db.get("users", Number(id));
+    const user = found && found.status === "pending" ? found : null;
     if (!user) return Response.json({ error: "No pending student with that id." }, { status: 404 });
-    db.prepare("UPDATE users SET status = ?, review_note = ? WHERE id = ?").run(
-      decision === "approve" ? "verified" : "rejected",
-      decision === "reject" ? note.trim() : null,
-      user.id
-    );
+    await db.update("users", user.id, {
+      status: decision === "approve" ? "verified" : "rejected",
+      review_note: decision === "reject" ? note.trim() : null,
+    });
     return Response.json({ ok: true });
   }
 
   if (type === "society") {
-    const society = db.prepare("SELECT * FROM societies WHERE id = ? AND status = 'pending'").get(Number(id));
+    const foundSociety = await db.get("societies", Number(id));
+    const society = foundSociety && foundSociety.status === "pending" ? foundSociety : null;
     if (!society) return Response.json({ error: "No pending society with that id." }, { status: 404 });
     if (decision === "reject") {
-      db.prepare("UPDATE societies SET status = 'rejected', review_note = ? WHERE id = ?").run(note.trim(), society.id);
+      await db.update("societies", society.id, { status: "rejected", review_note: note.trim() });
       return Response.json({ ok: true });
     }
     // Approve: society goes live, and the applicant becomes its admin (and is verified as a student).
-    db.exec("BEGIN");
-    try {
-      db.prepare("UPDATE societies SET status = 'approved', review_note = NULL WHERE id = ?").run(society.id);
-      db.prepare("UPDATE users SET role = 'admin', society_id = ?, status = 'verified' WHERE id = ?").run(society.id, society.applicant_user_id);
-      db.exec("COMMIT");
-    } catch (err) {
-      db.exec("ROLLBACK");
-      throw err;
-    }
+    await db.update("societies", society.id, { status: "approved", review_note: null });
+    await db.update("users", society.applicant_user_id, { role: "admin", society_id: society.id, status: "verified" });
     return Response.json({ ok: true });
   }
 

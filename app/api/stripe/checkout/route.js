@@ -36,7 +36,7 @@ export async function POST(request) {
   try {
     if (kind === "pro") {
       if (user.role !== "admin") return fail("Only society admins can upgrade.", 403);
-      const society = db.prepare("SELECT * FROM societies WHERE id = ?").get(user.society_id);
+      const society = await db.get("societies", user.society_id);
       if (society.plan === "pro") return fail("Your society is already on Pro.");
       params = {
         mode: "subscription",
@@ -55,19 +55,16 @@ export async function POST(request) {
         cancel_url: `${origin}/admin?checkout=cancelled`,
       };
     } else if (kind === "ticket") {
-      const event = db
-        .prepare(
-          `SELECT e.*, s.name AS society_name, (SELECT COUNT(*) FROM payments WHERE event_id = e.id AND kind = 'ticket') AS sold
-           FROM events e JOIN societies s ON s.id = e.society_id WHERE e.id = ?`
-        )
-        .get(Number(eventId));
-      if (!event) return fail("Event not found.", 404);
+      const found = await db.get("events", Number(eventId));
+      const society = found ? await db.get("societies", found.society_id) : null;
+      if (!found || !society) return fail("Event not found.", 404);
+      const payments = await db.all("payments");
+      const event = { ...found, society_name: society.name, sold: payments.filter((p) => p.event_id === found.id && p.kind === "ticket").length };
       if (event.start < nowLocal()) return fail("This event has already started.");
       if (!event.price_cents) return fail("This event is free: just RSVP.");
       if (event.capacity != null && event.sold >= event.capacity) return fail("Sold out.", 409);
-      const owned = db.prepare("SELECT 1 FROM payments WHERE kind = 'ticket' AND event_id = ? AND user_id = ?").get(event.id, user.id);
+      const owned = payments.some((p) => p.kind === "ticket" && p.event_id === event.id && p.user_id === user.id);
       if (owned) return fail("You already have a ticket for this event.");
-      const society = db.prepare("SELECT * FROM societies WHERE id = ?").get(event.society_id);
       params = {
         mode: "payment",
         line_items: [
@@ -85,10 +82,10 @@ export async function POST(request) {
         ...(await payoutTo(society, event.price_cents)),
       };
     } else if (kind === "membership") {
-      const society = db.prepare("SELECT * FROM societies WHERE id = ?").get(Number(societyId));
+      const society = await db.get("societies", Number(societyId));
       if (!society) return fail("Society not found.", 404);
       if (!society.membership_fee_cents) return fail("This society has no membership fee.");
-      const member = db.prepare("SELECT 1 FROM payments WHERE kind = 'membership' AND society_id = ? AND user_id = ?").get(society.id, user.id);
+      const member = (await db.all("payments")).some((p) => p.kind === "membership" && p.society_id === society.id && p.user_id === user.id);
       if (member) return fail("You are already a member.");
       params = {
         mode: "payment",

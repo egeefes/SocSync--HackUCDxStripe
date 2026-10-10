@@ -16,7 +16,7 @@ export default async function RegisterSocietyPage() {
     return <p className="card text-sm">You&apos;re the SocSync admin. Review applications on <Link href="/platform" className="text-accent underline">Verification requests</Link>.</p>;
   }
 
-  const app = user ? myApplication(user.id) : null;
+  const app = user ? await myApplication(user.id) : null;
   if (app?.status === "pending") {
     return (
       <div className="card mx-auto max-w-lg space-y-2 text-sm">

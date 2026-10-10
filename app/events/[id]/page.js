@@ -8,7 +8,6 @@ import ReviewForm from "@/components/ReviewForm";
 import Flash from "@/components/Flash";
 import TicketCard from "@/components/TicketCard";
 import { Stars } from "@/components/Stars";
-import db from "@/lib/db";
 import { pageUser } from "@/lib/session";
 import { getEvent, eventReviews, reviewBlockReason, myTickets } from "@/lib/queries";
 import { euro, when, nowLocal, googleCalendarLink } from "@/lib/format";
@@ -18,21 +17,21 @@ export default async function EventPage({ params, searchParams }) {
   const { id } = await params;
   const { checkout } = await searchParams;
   const user = await pageUser();
-  const event = getEvent(Number(id), user.id);
+  const event = await getEvent(Number(id), user.id);
   if (!event) notFound();
 
-  const reviews = eventReviews(event.id);
+  const reviews = await eventReviews(event.id);
   const isPast = event.start < nowLocal();
   const spotsTaken = event.price_cents ? event.tickets_sold : event.rsvp_count;
   const full = event.capacity != null && spotsTaken >= event.capacity;
   const blocked = reviewBlockReason(event, user);
   // Paid ticket, or (for free events) the reserved ticket that an RSVP gives you, each with a QR code.
   const ticket = event.has_ticket
-    ? { ...myTickets(user.id).find((t) => t.event_id === event.id), kind: "paid" }
+    ? { ...(await myTickets(user.id)).find((t) => t.event_id === event.id), kind: "paid" }
     : event.has_rsvp && !event.price_cents
       ? { kind: "reserved", user_id: user.id, event_id: event.id, title: event.title, start: event.start, venue: event.venue, society_name: event.society_name }
       : null;
-  const society = db.prepare("SELECT category FROM societies WHERE id = ?").get(event.society_id);
+  const society = { category: event.category };
 
   return (
     <>

@@ -3,7 +3,7 @@ import db from "@/lib/db";
 
 export async function GET(_request, { params }) {
   const { id } = await params;
-  const row = db.prepare("SELECT image_data FROM event_posters WHERE event_id = ?").get(Number(id));
+  const row = await db.get("event_posters", Number(id));
   if (!row) return new Response("No poster", { status: 404 });
   const [, type, base64] = row.image_data.match(/^data:(image\/[a-z]+);base64,(.*)$/) ?? [];
   if (!base64) return new Response("Bad poster data", { status: 500 });

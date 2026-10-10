@@ -11,7 +11,7 @@ export async function POST(request) {
   if (prompt.length < 3) return Response.json({ error: "Tell us a little about what you're looking for first." }, { status: 400 });
   if (prompt.length > 300) return Response.json({ error: "Keep it under 300 characters." }, { status: 400 });
 
-  const upcoming = listEvents().filter((e) => e.start >= nowLocal()).slice(0, 80);
+  const upcoming = (await listEvents()).filter((e) => e.start >= nowLocal()).slice(0, 80);
   try {
     return Response.json({ mode: "ai", results: await findEvents(prompt, upcoming) });
   } catch (err) {

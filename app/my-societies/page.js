@@ -11,13 +11,18 @@ import { nowLocal } from "@/lib/format";
 
 export default async function MySocietiesPage() {
   const user = await pageUser({ role: "student" });
-  const memberships = myMemberships(user.id);
+  const [memberships, tickets, reservations, followed] = await Promise.all([
+    myMemberships(user.id),
+    myTickets(user.id),
+    myReservations(user.id),
+    mySocieties(user.id),
+  ]);
   const now = nowLocal();
   // Paid tickets + free reservations, upcoming first (soonest first), then past ones.
-  const all = [...myTickets(user.id).map((t) => ({ ...t, kind: "paid" })), ...myReservations(user.id)];
+  const all = [...tickets.map((t) => ({ ...t, kind: "paid" })), ...reservations];
   const upcoming = all.filter((t) => t.start >= now).sort((a, b) => a.start.localeCompare(b.start));
   const past = all.filter((t) => t.start < now).sort((a, b) => b.start.localeCompare(a.start));
-  const following = mySocieties(user.id).filter((s) => !s.is_member).map((s) => ({ ...s, is_following: 1 }));
+  const following = followed.filter((s) => !s.is_member).map((s) => ({ ...s, is_following: 1 }));
 
   return (
     <>

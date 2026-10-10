@@ -3,6 +3,7 @@
 import db, { CATEGORIES } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { validateEvent, shiftLocal, REPEATS } from "@/lib/events";
+import { nowStamp } from "@/lib/format";
 
 export async function POST(request) {
   const { user, error } = await requireUser({ admin: true });
@@ -21,31 +22,21 @@ export async function POST(request) {
   if (poster && poster.length > 4_000_000) errors.push("Poster image is too large.");
   if (errors.length) return Response.json({ error: errors.join(" ") }, { status: 400 });
 
-  const insert = db.prepare(
-    `INSERT INTO events (society_id, title, description, venue, start, end, price_cents, capacity, created_via)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  );
   const ids = [];
-  db.exec("BEGIN");
-  try {
-    for (let i = 0; i < times; i++) {
-      const r = insert.run(
-        user.society_id, v.title, v.description, v.venue,
-        shiftLocal(v.start, repeat, i), shiftLocal(v.end, repeat, i) || null,
-        v.price, v.capacity, b.created_via === "ai" ? "ai" : "manual"
-      );
-      ids.push(Number(r.lastInsertRowid));
-    }
-    // The poster shows one specific date, so it only goes on the first occurrence.
-    if (poster) {
-      db.prepare("INSERT INTO event_posters (event_id, image_data, design_json) VALUES (?, ?, ?)").run(
-        ids[0], poster, b.poster_design ? JSON.stringify(b.poster_design).slice(0, 4000) : null
-      );
-    }
-    db.exec("COMMIT");
-  } catch (err) {
-    db.exec("ROLLBACK");
-    throw err;
+  for (let i = 0; i < times; i++) {
+    const row = await db.insert("events", {
+      society_id: user.society_id, title: v.title, description: v.description, venue: v.venue,
+      start: shiftLocal(v.start, repeat, i), end: shiftLocal(v.end, repeat, i) || null,
+      price_cents: v.price, capacity: v.capacity, created_via: b.created_via === "ai" ? "ai" : "manual",
+    });
+    ids.push(row.id);
+  }
+  // The poster shows one specific date, so it only goes on the first occurrence.
+  if (poster) {
+    await db.set("event_posters", ids[0], {
+      event_id: ids[0], image_data: poster,
+      design_json: b.poster_design ? JSON.stringify(b.poster_design).slice(0, 4000) : null, created_at: nowStamp(),
+    });
   }
   return Response.json({ id: ids[0], ids });
 }

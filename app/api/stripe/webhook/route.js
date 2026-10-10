@@ -17,11 +17,12 @@ export async function POST(request) {
   }
 
   if (event.type === "checkout.session.completed") {
-    fulfilCheckout(event.data.object);
+    await fulfilCheckout(event.data.object);
   }
   if (event.type === "customer.subscription.deleted") {
     // Pro subscription cancelled -> back to the free plan.
-    db.prepare("UPDATE societies SET plan = 'free' WHERE stripe_subscription_id = ?").run(event.data.object.id);
+    const societies = (await db.all("societies")).filter((s) => s.stripe_subscription_id === event.data.object.id);
+    await Promise.all(societies.map((s) => db.update("societies", s.id, { plan: "free" })));
   }
   return Response.json({ received: true });
 }

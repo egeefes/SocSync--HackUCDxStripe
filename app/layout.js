@@ -16,7 +16,7 @@ export const metadata = {
 
 export default async function RootLayout({ children }) {
   const user = await getCurrentUser();
-  const stats = user?.role === "platform" ? platformStats() : null;
+  const stats = user?.role === "platform" ? await platformStats() : null;
   const pendingCount = stats ? stats.pending_users + stats.pending_societies : 0;
 
   return (

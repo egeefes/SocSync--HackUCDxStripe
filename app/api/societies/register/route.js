@@ -6,7 +6,7 @@
 import db, { CATEGORIES, COMMITTEE_ROLES as ROLES } from "@/lib/db";
 import { getCurrentUser, startSession } from "@/lib/session";
 import { createStudentAccount } from "@/lib/accounts";
-import { normalizeInstagram } from "@/lib/format";
+import { normalizeInstagram, nowStamp } from "@/lib/format";
 
 export async function POST(request) {
   const b = await request.json();
@@ -15,7 +15,7 @@ export async function POST(request) {
     return Response.json({ error: "Only student accounts can apply to register a society." }, { status: 403 });
   }
   if (user) {
-    const open = db.prepare("SELECT name FROM societies WHERE applicant_user_id = ? AND status = 'pending'").get(user.id);
+    const open = (await db.all("societies")).find((s) => s.applicant_user_id === user.id && s.status === "pending");
     if (open) return Response.json({ error: `You already have an application waiting: ${open.name}.` }, { status: 409 });
   }
 
@@ -34,23 +34,22 @@ export async function POST(request) {
   const insta = normalizeInstagram(b.instagram); // optional; "@handle" or null
   if (insta.error) errors.push(insta.error);
   if (errors.length) return Response.json({ error: errors.join(" ") }, { status: 400 });
-  if (db.prepare("SELECT 1 FROM societies WHERE lower(name) = lower(?) AND status != 'rejected'").get(name)) {
+  if ((await db.all("societies")).some((s) => s.name.toLowerCase() === name.toLowerCase() && s.status !== "rejected")) {
     return Response.json({ error: "A society with this name is already on SocSync or waiting for approval." }, { status: 409 });
   }
 
   // New person: create their (pending) account first, using the account fields from the same form.
   if (!user) {
-    const created = createStudentAccount({ name: b.applicantName, studentNumber: b.studentNumber, email: b.email, password: b.password });
+    const created = await createStudentAccount({ name: b.applicantName, studentNumber: b.studentNumber, email: b.email, password: b.password });
     if (created.error) return Response.json({ error: created.error }, { status: created.status });
     await startSession(created.id);
     user = { id: created.id };
   }
 
-  const result = db
-    .prepare(
-      `INSERT INTO societies (name, category, description, instagram, membership_fee_cents, status, applicant_user_id, applicant_role, evidence, applied_at)
-       VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, datetime('now'))`
-    )
-    .run(name, b.category, description, insta.handle, fee, user.id, b.role, evidence);
-  return Response.json({ id: Number(result.lastInsertRowid), status: "pending" });
+  const society = await db.insert("societies", {
+    name, category: b.category, description, instagram: insta.handle, membership_fee_cents: fee, plan: "free", ai_imports_used: 0,
+    stripe_subscription_id: null, stripe_account_id: null, status: "pending", applicant_user_id: user.id, applicant_role: b.role,
+    evidence, review_note: null, applied_at: nowStamp(), bio: null, committee_json: null,
+  });
+  return Response.json({ id: society.id, status: "pending" });
 }

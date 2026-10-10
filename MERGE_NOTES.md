@@ -22,14 +22,11 @@ depend on its session and user model. No new authentication feature was added as
 port. The first archive's authentication endpoints cannot be dropped in directly: they use a different
 user/session/database model.
 
-## Important Vercel deployment note
+## Database
 
-The app currently uses Node's built-in `node:sqlite` and a local database file under `data/`. This is suitable
-for local development, but a local SQLite file is not durable shared storage on Vercel serverless deployments.
-Before using this on Vercel with real users, migrate `lib/db.js` to a hosted database (for example PostgreSQL)
-and update its queries/schema, or use a persistent service architecture designed for the chosen database.
-Also configure the environment variables in `.env.example` in Vercel, use Stripe test mode until webhooks
-are verified, and never commit `.env.local` or live secrets.
+This merge originally used `node:sqlite`. It has since been migrated to Upstash Redis so data persists on Vercel;
+see `UPSTASH-MIGRATION.md`. Configure the environment variables in `.env.example` in Vercel, use Stripe test mode until
+webhooks are verified, and never commit `.env.local` or live secrets.
 
 ## Validation
 

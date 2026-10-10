@@ -18,16 +18,22 @@ export default async function Home({ searchParams }) {
   const { q = "", category = "", free = "", checkout, google, reason, added } = await searchParams;
   const now = nowLocal();
 
-  const mine = mySocieties(user.id).map((s) => ({ ...s, is_following: 1 }));
-  const goingIds = new Set(db.prepare("SELECT event_id FROM rsvps WHERE user_id = ?").all(user.id).map((r) => r.event_id));
-  const upcoming = listEvents({ search: q, category: CATEGORIES.includes(category) ? category : "" })
-    .filter((e) => e.start >= now)
-    .filter((e) => !free || !e.price_cents);
-  const allUpcoming = listEvents().filter((e) => e.start >= now);
-  const others = listSocieties({ userId: user.id }).filter((s) => !s.is_member && !s.is_following).slice(0, 4);
-  const { n: syncedCount } = db
-    .prepare("SELECT COUNT(*) AS n FROM google_events g JOIN events e ON e.id = g.event_id WHERE g.user_id = ? AND e.start >= ?")
-    .get(user.id, now);
+  // Everything this page needs, fetched at the same time.
+  const [mineRows, rsvps, filtered, everything, societies, googleLinks] = await Promise.all([
+    mySocieties(user.id),
+    db.all("rsvps"),
+    listEvents({ search: q, category: CATEGORIES.includes(category) ? category : "" }),
+    listEvents(),
+    listSocieties({ userId: user.id }),
+    db.all("google_events"),
+  ]);
+  const mine = mineRows.map((s) => ({ ...s, is_following: 1 }));
+  const goingIds = new Set(rsvps.filter((r) => r.user_id === user.id).map((r) => r.event_id));
+  const upcoming = filtered.filter((e) => e.start >= now).filter((e) => !free || !e.price_cents);
+  const allUpcoming = everything.filter((e) => e.start >= now);
+  const others = societies.filter((s) => !s.is_member && !s.is_following).slice(0, 4);
+  const upcomingIds = new Set(allUpcoming.map((e) => e.id));
+  const syncedCount = googleLinks.filter((g) => g.user_id === user.id && upcomingIds.has(g.event_id)).length;
   const firstName = user.name.split(" ")[0];
 
   // Keep the other filters when changing one.

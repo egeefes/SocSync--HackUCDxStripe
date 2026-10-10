@@ -6,9 +6,7 @@ import ReviewDecision from "@/components/ReviewDecision";
 
 export default async function PlatformPage() {
   await pageUser({ role: "platform" }); // anyone else is sent to their own home page
-  const students = pendingStudents();
-  const societies = pendingSocieties();
-  const stats = platformStats();
+  const [students, societies, stats] = await Promise.all([pendingStudents(), pendingSocieties(), platformStats()]);
 
   return (
     <div className="space-y-6">

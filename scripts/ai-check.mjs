@@ -1,6 +1,6 @@
 // Live check of the AI + Stripe integrations (uses real OpenRouter credits and the Stripe sandbox).
 // Run with the dev server running: npm run check:ai
-// NOTE: uses up AI imports on the Japanese Society's free plan; run `npm run reset-db` afterwards.
+// NOTE: uses up AI imports on the Japanese Society's free plan; run `npm run reset-db -- --yes` afterwards.
 const BASE = process.env.APP_URL || "http://localhost:3000";
 
 // Log in as a seeded demo account and return its session cookie (cached per user).

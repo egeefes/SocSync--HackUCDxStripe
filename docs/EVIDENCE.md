@@ -123,7 +123,7 @@ Live check: `npm run check:ai`, model `google/gemini-2.5-flash` via OpenRouter, 
 **Fix after first look:** the headline sat too close to the colour band, so we moved it down.
 
 **Limits:**
-- Posters are 360 KB JPEGs stored in SQLite, which is fine for a prototype.
+- Posters are 360 KB JPEGs stored in Redis, which is fine for a prototype.
 - A real launch would store them in object storage.
 
 ### Reliability: the AI is sometimes slow

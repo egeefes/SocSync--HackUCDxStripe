@@ -16,11 +16,12 @@ This build uses `socsync-auth-feedback-fix` as the application foundation becaus
 - Society admin dashboard and SocSync platform verification dashboard
 - Demo accounts and local synthetic seed data
 
-## Added in this merge
-- Reusable login modal with student/society tabs, accessible dialog semantics, Escape/backdrop close, error states and busy state
-- Modal entry points from the account menu (switch account) and signup page
-- iOS Safari form hardening: 16px mobile input text to prevent automatic zoom, native appearance normalization for modal inputs, safe-area-aware modal padding, dynamic viewport height and scroll containment
-- App-wide loading of the extra CSS containing the modal and mobile fixes
+## Login choice
+- The original dedicated `/login` page and `LoginPanel` are retained, including student/society tabs, demo account buttons and the SocSync admin demo login.
+- Login links from the signup page and account dropdown navigate to `/login`.
+- The login modal component and modal-only CSS have been removed.
+- iOS Safari form hardening remains: mobile input text is at least 16px to avoid automatic zoom, and native checkbox/radio sizing is normalised.
+- App-wide loading of `extra.css` remains enabled.
 
 ## Important compatibility note
 The older snapshot has its own JSON store, route conventions and session contract. Its saved-event/interests/committee-unlock code cannot safely be copied verbatim into this app without migrating those features to the current SQLite schema and current auth/session APIs. Features with direct equivalents are represented by the newer implementation; see `docs/MERGE_NOTES.md` before extending the remaining older-only features.

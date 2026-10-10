@@ -7,11 +7,28 @@ import { fullReload } from "@/lib/full-reload";
 
 export default function LoginPanel({ demoUsers }) {
   const [tab, setTab] = useState("student");
+  const [demoError, setDemoError] = useState("");
+  const [demoBusy, setDemoBusy] = useState(false);
 
   async function demoLogin(id) {
-    const res = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: id }) });
-    const data = await res.json().catch(() => ({}));
-    fullReload(data.redirect || "/");
+    if (demoBusy) return;
+    setDemoBusy(true);
+    setDemoError("");
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        credentials: "same-origin",
+        cache: "no-store",
+        body: JSON.stringify({ userId: id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Login failed (${res.status}).`);
+      fullReload(data.redirect || "/");
+    } catch (err) {
+      setDemoError(err instanceof Error ? err.message : "Login failed. Please try again.");
+      setDemoBusy(false);
+    }
   }
 
   const demos = demoUsers.filter((u) => (tab === "student" ? u.role === "student" : u.role === "admin"));
@@ -21,8 +38,8 @@ export default function LoginPanel({ demoUsers }) {
   return (
     <div className="auth-card space-y-5 !my-0">
       <div className="flex gap-1 rounded-xl border border-border p-1">
-        <button className={tabClass("student")} onClick={() => setTab("student")}>🎓 Student</button>
-        <button className={tabClass("society")} onClick={() => setTab("society")}>🏛️ Society</button>
+        <button type="button" className={tabClass("student")} onClick={() => { setDemoError(""); setTab("student"); }}>🎓 Student</button>
+        <button type="button" className={tabClass("society")} onClick={() => { setDemoError(""); setTab("society"); }}>🏛️ Society</button>
       </div>
 
       {/* key={tab} resets the form (and any error) when switching tabs */}
@@ -43,11 +60,13 @@ export default function LoginPanel({ demoUsers }) {
         )}
       </p>
 
+      {demoError && <p role="alert" aria-live="polite" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">{demoError}</p>}
+
       <div className="space-y-2 border-t border-border pt-4">
         <p className="label">Demo {tab === "student" ? "students" : "societies"} (one click, no password)</p>
         <div className="flex flex-wrap gap-2">
           {demos.map((u) => (
-            <button key={u.id} onClick={() => demoLogin(u.id)} className="btn-secondary">
+            <button type="button" key={u.id} disabled={demoBusy} onClick={() => demoLogin(u.id)} className="btn-secondary">
               {u.name}{u.status === "pending" && <span className="text-xs text-amber-600"> (pending)</span>}
             </button>
           ))}
@@ -55,7 +74,7 @@ export default function LoginPanel({ demoUsers }) {
         {platform && (
           <p className="pt-1 text-xs text-muted">
             Running SocSync?{" "}
-            <button onClick={() => demoLogin(platform.id)} className="text-accent underline">Log in as the SocSync admin</button>
+            <button type="button" disabled={demoBusy} onClick={() => demoLogin(platform.id)} className="text-accent underline">Log in as the SocSync admin</button>
           </p>
         )}
       </div>
